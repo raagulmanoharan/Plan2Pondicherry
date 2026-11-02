@@ -1,44 +1,37 @@
 # Pondy — Plan2Pondicherry
 
-A local-first Puducherry trip-planning MVP. Interactive Three.js city illustration, approximate landmark locations, search and category filters, place details, and a reorderable itinerary with local persistence and text export.
+Puducherry trip planning on a geographic 3D map. MapLibre renders OpenStreetMap geography streamed by OpenFreeMap: streets, coastline, parks, labels, and mapped building footprints. Search eight editorial destinations and save, reorder, or export a day plan.
 
-## Run
+## Run and verify
 
 Node.js 22.12+ or 24 recommended.
 
 ```sh
 npm ci
 npm run dev
-```
-
-```sh
 npm test
 npm run build
-npm run preview
+npm run test:e2e
 ```
 
-Browser regression checks: `npm run test:e2e`. The Playwright configuration uses system Chromium at `/usr/bin/chromium`; set `CHROMIUM_PATH` to another installed Chromium executable when needed. Checks cover desktop discovery, itinerary persistence/reordering/export, and mobile layout.
+Playwright uses `/usr/bin/chromium`; override with `CHROMIUM_PATH`. Browser regression tests use a small, explicitly synthetic vector tile fixture to verify rendering, controls, failure handling, and itinerary interactions independently of a third-party tile service. These tests do not establish Puducherry coverage or validate geographic accuracy. To check actual map coverage, open the app with access to `tiles.openfreemap.org` and inspect the heritage quarter at zoom 16–19.
 
-Vite serves development on port 5173 by default. No API keys or backend are required. Google Fonts are optional; system fonts are used if unavailable. The application and 3D geometry otherwise use local assets.
+## Map sources and accuracy
 
-## Accuracy and scope
+- [OpenStreetMap](https://www.openstreetmap.org/copyright): mapped roads, building polygons, land use, water, and labels. ODbL attribution is displayed on the map.
+- [OpenFreeMap](https://openfreemap.org/quick_start/): geographic vector tiles and Liberty basemap using the OpenMapTiles schema. No API key or backend is required. Internet access to the provider is required.
+- [MapLibre](https://maplibre.org/maplibre-gl-js/docs/examples/display-buildings-in-3d/): browser renderer. Buildings use `render_height` and `render_min_height` from the tile provider; missing values fall back to 8 m and 0 m. Provider values can themselves be estimates. This is **not a surveyed digital twin**, a photorealistic mesh, or a guarantee of complete building coverage.
 
-This is **not a digital twin or navigation service**. All streets, buildings, trees, and coastline are illustrative generated geometry, not OSM data. The eight editorial place entries use approximate coordinates and unverified visitor information. Straight-line itinerary connections and direct distances are not walking routes. Confirm opening hours and access independently. There are no live business listings or photos.
+Building colors are presentation styling, not sampled real façade colors. Roof forms, architectural details, vegetation, and individual façades are not reconstructed. Neighborhood mode is an elevated close-up of the geographic map; it is not street photography, a pedestrian simulator, or validated navigation. Road names come from the map source; destination coordinates remain approximate editorial seed data. Dotted itinerary lines and distances connect stops directly, not along roads. Confirm access and opening hours independently.
 
-Plans are saved only in this browser's localStorage. Export downloads a text plan. If WebGL is unavailable, place discovery and itinerary features remain usable.
+Plans are saved in browser localStorage. If WebGL or the tile provider is unavailable, discovery and day planning remain usable; a map error explains the failure without substituting invented streets.
 
-## Next data integration
+## Sources investigated on 2026-11-02
 
-1. Audit an explicitly bounded pilot district and import rights-cleared OSM roads/buildings with provenance and ODbL attribution.
-2. Replace illustrative geometry with actual footprints, heights where available, and marked estimates elsewhere.
-3. Add pedestrian routing through a supported routing engine; never label straight lines as walking directions.
-4. Verify landmark entrances, hours, access, and business records with source dates.
-5. Add rights-cleared street imagery and surveyed facades. Do not extract Google Street View imagery for reconstruction without applicable permission.
+[The source investigation](docs/map-sources.md) records candidates, licenses, coverage checks, and remaining work for photorealistic reconstruction. In particular, the downloaded AMRUT archive labeled “Puducherry” contains Karaikal and Yanam features, not Puducherry city in the pilot bounding box, so it is not used in this map.
 
-Core files: `src/data.js` (editorial data and itinerary calculations), `src/scene.js` (Three.js illustration), `src/main.js` (UI and persistence).
+## Vercel
 
-## Street exploration and Vercel
+`vercel.json` builds the static Vite application from the repository root with `npm ci` and `npm run build`. No environment variables are required. Geographic tiles load directly from OpenFreeMap in the visitor's browser. Keep the provider attribution visible, including on mobile.
 
-Use “Explore at street level” to enter an eye-level coastal scene. Drag to look; use WASD, arrow keys, or the on-screen pad to move. Building collision and scene bounds prevent walking through blocks or out to sea. This is illustrative exploration, not geographic navigation. Repeated geometry uses GPU instancing; device pixel ratio is capped and rendering pauses while the tab is hidden. Water motion honors reduced-motion settings.
-
-`vercel.json` configures a static Vite deployment. In Vercel, import this repository, use the repository root, and deploy. No environment variables are required. Alternatively, run `npx vercel` from this directory with your Vercel account. A Vercel project/deployment has not been created by this repository configuration alone.
+Core files: `src/data.js` (editorial destinations and itinerary calculations), `src/scene.js` (geographic renderer), `src/main.js` (UI and persistence), `tests/map-fixture.js` (synthetic browser-test data).
