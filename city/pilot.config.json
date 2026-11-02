@@ -1,0 +1,12 @@
+{
+  "name": "White Town pilot",
+  "origin": {"lat": 11.9325, "lon": 79.833},
+  "bounds": [-600, -650, 600, 650],
+  "bbox": [11.92665, 79.82749, 11.93835, 79.83851],
+  "source": {
+    "name": "OpenStreetMap pilot extract",
+    "license": "ODbL-1.0",
+    "attribution": "© OpenStreetMap contributors — ODbL 1.0. Building heights, road widths, and sidewalk widths may be estimates.",
+    "url": "https://www.openstreetmap.org/copyright"
+  }
+}

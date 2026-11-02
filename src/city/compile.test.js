@@ -1,0 +1,24 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,writeFile,readFile,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {execFileSync} from 'node:child_process';
+import {compileCity,projectPoint,unprojectPoint,canWalk,movePlayer,findSpawn} from './compile.js';
+const origin={lat:11.9325,lon:79.833},bounds=[-100,-100,100,100];
+const world=(p)=>unprojectPoint(p,origin);
+const road=(points)=>({type:'Feature',properties:{highway:'residential',width:8},geometry:{type:'LineString',coordinates:points.map(world)}});
+const building=(rings,props={})=>({type:'Feature',properties:{building:'yes',...props},geometry:{type:'Polygon',coordinates:rings.map(r=>r.map(world))}});
+const square=(x,z,w)=>[[x,z],[x+w,z],[x+w,z+w],[x,z+w],[x,z]];
+const geo={type:'FeatureCollection',features:[road([[-90,0],[90,0]]),building([square(10,-10,20)],{'building:levels':2}),{type:'Feature',properties:{natural:'tree'},geometry:{type:'Point',coordinates:world([-20,3])}}]};
+const city=()=>compileCity(geo,{origin,bounds});
+test('local metric projection round trips geographic coordinates',()=>{const p=[79.8341,11.9331],q=unprojectPoint(projectPoint(p,origin),origin);assert.ok(Math.abs(p[0]-q[0])<1e-10&&Math.abs(p[1]-q[1])<1e-10);});
+test('compiler preserves footprints, tagged trees, and marks inferred dimensions',()=>{const c=city();assert.equal(c.buildings[0].height,6.4);assert.equal(c.buildings[0].heightSource,'levels-estimate');assert.equal(c.trees.length,1);assert.equal(c.roads[0].width,8);assert.equal(c.quality.estimatedHeights,1);assert.equal(c.quality.estimatedRoadWidths,0);});
+test('player cannot cross building edges even in a large movement step',()=>{const c=city();assert.ok(canWalk(c,[0,0]));const p=movePlayer(c,[0,0],[80,0]);assert.ok(p[0]<9.7);assert.ok(p[0]>9);assert.ok(!canWalk(c,[20,0]));});
+test('movement stays within mapped corridors and district bounds',()=>{const c=city();assert.ok(!canWalk(c,[0,40]));assert.ok(!canWalk(c,[101,0]));assert.ok(!canWalk(c,[-20,3]));});
+test('spawn is on an unblocked road and has a usable heading',()=>{const c=city(),s=findSpawn(c);assert.ok(canWalk(c,s.position));assert.ok(Number.isFinite(s.yaw));});
+test('polygon holes are preserved rather than filled with collision',()=>{const c=compileCity({type:'FeatureCollection',features:[road([[-90,0],[90,0]]),building([square(-20,-20,40),square(-10,-10,20)])]},{origin,bounds});assert.ok(canWalk(c,[0,0]));assert.ok(!canWalk(c,[15,0]));});
+test('water blocks movement and incompatible roads are excluded',()=>{const c=city();c.water=[{rings:[square(-5,-5,10)]}];assert.ok(!canWalk(c,[0,0]));assert.throws(()=>compileCity({type:'FeatureCollection',features:[{...road([[-90,0],[90,0]]),properties:{highway:'motorway'}}]},{origin,bounds}),/No mapped walkable roads/);});
+test('offline pipeline builds and validates a repeatable scene with provenance',async()=>{const dir=await mkdtemp(path.join(tmpdir(),'pondy-city-'));try{const input=path.join(dir,'input.json'),out=path.join(dir,'pilot.json'),config=path.join(dir,'config.json');await writeFile(input,JSON.stringify(geo));await writeFile(config,JSON.stringify({origin,bounds,source:{name:'Synthetic test fixture',license:'CC0-1.0'}}));execFileSync(process.execPath,['scripts/city.mjs','build','--input',input,'--out',out,'--config',config]);const c=JSON.parse(await readFile(out,'utf8'));assert.equal(c.buildings.length,1);assert.equal(c.source.inputSha256.length,64);assert.ok(canWalk(c,c.spawn.position));const r=JSON.parse(execFileSync(process.execPath,['scripts/city.mjs','validate','--input',out]));assert.equal(r.valid,true);}finally{await rm(dir,{recursive:true,force:true});}});
+
+test('offline importer accepts OSM node and way JSON',async()=>{const dir=await mkdtemp(path.join(tmpdir(),'pondy-osm-'));try{const input=path.join(dir,'osm.json'),out=path.join(dir,'pilot.json'),config=path.join(dir,'config.json');const a=world([-50,0]),b=world([50,0]);await writeFile(input,JSON.stringify({version:0.6,elements:[{type:'node',id:1,lon:a[0],lat:a[1]},{type:'node',id:2,lon:b[0],lat:b[1]},{type:'way',id:3,nodes:[1,2],tags:{highway:'residential',width:'8'}}]}));await writeFile(config,JSON.stringify({origin,bounds,source:{name:'Synthetic OSM',license:'CC0-1.0'}}));execFileSync(process.execPath,['scripts/city.mjs','build','--input',input,'--out',out,'--config',config]);const c=JSON.parse(await readFile(out,'utf8'));assert.equal(c.roads.length,1);assert.equal(c.roads[0].width,8);}finally{await rm(dir,{recursive:true,force:true});}});

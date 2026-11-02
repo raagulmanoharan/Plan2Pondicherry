@@ -1,6 +1,7 @@
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import {places, center} from './data.js';
+import {compileCity} from './city/compile.js';
 
 const home={center:[center.lon,center.lat],zoom:15.6,pitch:58,bearing:0};
 const emptyRoute={type:'FeatureCollection',features:[]};
@@ -17,7 +18,7 @@ export function createScene(host,onSelect){
  const status=document.createElement('div');status.className='map-data-status';status.setAttribute('role','status');
  const message=document.createElement('span');message.textContent='Loading Puducherry map data…';status.append(message);
  const retry=document.createElement('button');retry.type='button';retry.textContent='Retry map';retry.hidden=true;retry.onclick=()=>location.reload();status.append(retry);host.append(status);
- let loaded=false,walking=false,routeData=emptyRoute,held=null,last=0;
+ let loaded=false,walking=false,routeData=emptyRoute,walker=null,pending=false;
  const fail=()=>{status.hidden=false;message.textContent=loaded?'Some map data could not load. Check your connection or retry the map.':'Map data could not load. Check your connection. Places and day planning still work.';retry.hidden=false;};
  const timeout=setTimeout(()=>{if(!loaded)fail();},20000);
  map.on('error',fail);
@@ -47,41 +48,49 @@ export function createScene(host,onSelect){
   const marker=new maplibregl.Marker({element:e,anchor:'bottom'}).setLngLat([p.lon,p.lat]).addTo(map);
   return {p,e,marker};
  });
- const walkUI=document.createElement('div');walkUI.className='walk-ui';walkUI.hidden=true;
- walkUI.innerHTML='<span>NEIGHBORHOOD CLOSE-UP</span><p>Drag to pan · Right-drag to look<br>WASD / arrows to move · Not street imagery</p><div class="walk-pad"><button data-step="forward" aria-label="Move north">↑</button><div><button data-step="left" aria-label="Move west">←</button><button data-step="back" aria-label="Move south">↓</button><button data-step="right" aria-label="Move east">→</button></div></div>';
- host.append(walkUI);
- walkUI.querySelectorAll('[data-step]').forEach(e=>{
-  e.onpointerdown=ev=>{held=e.dataset.step;e.setPointerCapture(ev.pointerId);};
-  e.onpointerup=e.onpointercancel=()=>held=null;
- });
- const keys=new Set();
- const typing=()=>['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)||document.querySelector('dialog[open]');
- addEventListener('keydown',e=>{if(walking&&!typing()&&['w','a','s','d','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){keys.add(e.key);e.preventDefault();}});
- addEventListener('keyup',e=>keys.delete(e.key));addEventListener('blur',()=>{keys.clear();held=null;});
- document.addEventListener('visibilitychange',()=>{keys.clear();held=null;});
- function frame(now){
-  const dt=Math.min((now-last)/1000,.05)||0;last=now;
-  if(walking&&!typing()&&!document.hidden){
-   const north=Number(keys.has('w')||keys.has('ArrowUp')||held==='forward')-Number(keys.has('s')||keys.has('ArrowDown')||held==='back');
-   const east=Number(keys.has('d')||keys.has('ArrowRight')||held==='right')-Number(keys.has('a')||keys.has('ArrowLeft')||held==='left');
-   if(north||east){const c=map.getCenter(),step=dt*0.00018/Math.hypot(north,east);map.jumpTo({center:[c.lng+east*step/Math.cos(c.lat*Math.PI/180),c.lat+north*step]});}
-  }
-  requestAnimationFrame(frame);
- }
- requestAnimationFrame(frame);
  const ease=options=>map.easeTo({...options,duration:reduce?0:650});
- function setWalk(value){walking=value;keys.clear();held=null;walkUI.hidden=!value;host.classList.toggle('street-mode',value);if(value)ease({zoom:18.3,pitch:72});else ease(home);}
+ function stopWalk(){walking=false;walker?.dispose();walker=null;host.classList.remove('street-mode');host.dispatchEvent(new CustomEvent('walkchange',{detail:false}));}
+ function tileCity(){
+  if(!loaded||!map.areTilesLoaded())throw Error('Wait for the geographic map to load before walking.');
+  const layers=map.getStyle().layers,features=[];
+  const definitions=[['building','building'],['transportation','road'],['water','water'],['landuse','park'],['poi','tree']];
+  for(const [sourceLayer,kind] of definitions){
+   const layer=layers.find(l=>l['source-layer']===sourceLayer);if(!layer)continue;
+   for(const f of map.querySourceFeatures(layer.source,{sourceLayer})){
+    if(kind==='park'&&!['park','grass','garden','recreation_ground'].includes(f.properties.class))continue;
+    if(kind==='tree'&&f.properties.class!=='tree')continue;
+    if(kind==='road'&&f.properties.brunnel==='tunnel')continue;
+    const geo=f.toJSON();geo.properties={...geo.properties,_kind:kind};features.push(geo);
+   }
+  }
+  const c=map.getCenter();
+  return compileCity({type:'FeatureCollection',features},{origin:{lat:c.lat,lon:c.lng},bounds:[-350,-350,350,350],source:{name:'OpenStreetMap via OpenFreeMap — loaded tile preview',license:'ODbL-1.0',attribution:'© OpenStreetMap contributors · OpenMapTiles · OpenFreeMap · Loaded tile preview; coverage may be incomplete'}});
+ }
+ async function startWalk(){
+  if(pending)return walking;
+  if(walking){stopWalk();return false;}
+  pending=true;
+  try{
+   let city;
+   const response=await fetch('/city/pilot.json');
+   if(response.ok&&response.headers.get('content-type')?.includes('json')){city=await response.json();if(city.version!==1||!Array.isArray(city.roads)||!Array.isArray(city.buildings))throw Error('Invalid compiled pilot data.');}
+   else if(response.status===404||response.ok)city=tileCity();
+   else throw Error('The compiled city could not load. Retry the map.');
+   const {createWalk}=await import('./city/walk.js');
+   walker=await createWalk(host,city,stopWalk);walking=true;host.classList.add('street-mode');host.dispatchEvent(new CustomEvent('walkchange',{detail:true}));return true;
+  }finally{pending=false;}
+ }
  new ResizeObserver(()=>map.resize()).observe(host);
  const compass=document.querySelector('.compass');
  map.on('rotate',()=>{if(compass)compass.style.transform=`rotate(${-map.getBearing()}deg)`;});
  return {
-  focus(id){const p=places.find(p=>p.id===id);if(!p)return;if(walking)setWalk(false);ease({center:[p.lon,p.lat],zoom:17,pitch:58});for(const m of markers)m.e.classList.toggle('selected',m.p.id===id);},
+  focus(id){const p=places.find(p=>p.id===id);if(!p)return;if(walking)stopWalk();ease({center:[p.lon,p.lat],zoom:17,pitch:58});for(const m of markers)m.e.classList.toggle('selected',m.p.id===id);},
   filter(ids){for(const m of markers)m.e.hidden=!ids.includes(m.p.id);},
   route(items){routeData=items.length<2?emptyRoute:{type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:{type:'LineString',coordinates:items.map(p=>[p.lon,p.lat])}}]};map.getSource('day-plan')?.setData(routeData);},
   zoom(n){map.zoomTo(map.getZoom()-Math.log2(n),{duration:reduce?0:250});},
-  reset(){setWalk(false);},
-  flat(value){if(walking)setWalk(false);ease({pitch:value?0:58,bearing:0});},
-  walk(){setWalk(!walking);return walking;},
-  getStats(){return {walking,loaded,zoom:map.getZoom(),center:map.getCenter().toArray(),buildingLayer:Boolean(map.getLayer('pondy-buildings'))};}
+  reset(){stopWalk();ease(home);},
+  flat(value){if(walking)stopWalk();ease({pitch:value?0:58,bearing:0});},
+  walk:startWalk,
+  getStats(){return {walking,loaded,zoom:map.getZoom(),center:map.getCenter().toArray(),buildingLayer:Boolean(map.getLayer('pondy-buildings')),walk:walker?.getStats()};}
  };
 }

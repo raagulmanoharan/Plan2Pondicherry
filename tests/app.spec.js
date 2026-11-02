@@ -21,12 +21,12 @@ test('mobile categories and map controls work without horizontal overflow',async
  await page.locator('#dimension').click();await expect(page.locator('#dimension')).toHaveText('3D');await page.locator('#reset').click();await expect(page.locator('#dimension')).toHaveText('2D');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:'/tmp/pondy-mobile.png',fullPage:true});
 });
-test('neighborhood close-up supports geographic movement and returns to map view',async({page})=>{
+test('eye-level city supports walking and returns to map view',async({page})=>{
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('/');
- await expect(page.locator('.map-data-status')).toBeHidden();await page.locator('#walk').click();await expect(page.locator('#walk')).toHaveAttribute('aria-pressed','true');await expect(page.locator('.walk-ui')).toBeVisible();
+ await expect(page.locator('.map-data-status')).toBeHidden();await page.locator('#walk').click();await expect(page.locator('#walk')).toHaveAttribute('aria-pressed','true');await expect(page.locator('.city-walk')).toBeVisible();
  await page.screenshot({path:'/tmp/pondy-street.png'});
- const before=await page.locator('#map canvas').screenshot();await page.keyboard.down('w');await page.waitForTimeout(800);await page.keyboard.up('w');const after=await page.locator('#map canvas').screenshot();expect(before.equals(after)).toBe(false);
- await page.locator('#walk').click();await expect(page.locator('.walk-ui')).toBeHidden();await expect(page.locator('#walk')).toHaveAttribute('aria-pressed','false');expect(errors).toEqual([]);
+ await page.waitForTimeout(700);const before=await page.locator('.city-walk canvas').screenshot();await page.keyboard.down('w');await page.waitForTimeout(800);await page.keyboard.up('w');const after=await page.locator('.city-walk canvas').screenshot();expect(before.equals(after)).toBe(false);
+ await page.getByRole('button',{name:'Back to map',exact:true}).click();await expect(page.locator('.city-walk')).toHaveCount(0);await expect(page.locator('#walk')).toHaveAttribute('aria-pressed','false');expect(errors).toEqual([]);
 });
 
 test('geographic map renders buildings, preserves attribution, and reports provider failure',async({page})=>{

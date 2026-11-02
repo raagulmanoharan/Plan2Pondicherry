@@ -1,0 +1,57 @@
+{
+  "checkedAt": "2026-11-02",
+  "images": [
+    {
+      "id": "aayi-shyamal-2019",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/d/d9/Aayi_mandapam_2.jpg",
+      "source": "https://commons.wikimedia.org/wiki/File:Aayi_mandapam_2.jpg",
+      "creator": "Shyamal",
+      "license": "CC-BY-SA-3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "capturedAt": "2019-04-20",
+      "use": "landmark-reference",
+      "sequence": null,
+      "reconstructionReady": false,
+      "notes": "Single photo of Aayi Mandapam; no multi-view street sequence or surveyed scale."
+    },
+    {
+      "id": "notre-aravindaraja-2012",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/8/81/Eglise_de_Notre_Dame_des_Anges_-_PONDICHERRY.JPG",
+      "source": "https://commons.wikimedia.org/wiki/File:Eglise_de_Notre_Dame_des_Anges_-_PONDICHERRY.JPG",
+      "creator": "Aravindaraja",
+      "license": "CC-BY-SA-3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "capturedAt": "2012-09-22",
+      "use": "landmark-reference",
+      "sequence": null,
+      "reconstructionReady": false,
+      "notes": "Single church image. Age and coverage do not establish current building geometry."
+    }
+  ],
+  "candidates": [
+    {
+      "name": "Francois Martin street, East, Pondicherry, India",
+      "creator": "nicolas14",
+      "source": "https://sketchfab.com/models/f7febe66b9bb43dfb579dd6241fac849/embed",
+      "status": "metadata-only; license, download availability, dimensions, alignment, and visual fidelity unverified",
+      "admitted": false
+    },
+    {
+      "name": "KartaView street sequences",
+      "source": "https://kartaview.org/",
+      "terms": "https://kartaview.org/terms",
+      "declaredLicense": "CC-BY-SA-4.0",
+      "status": "Public API and terms identified; Puducherry sequence coverage and usable overlap not verified",
+      "admitted": false
+    },
+    {
+      "name": "Pondicherry street",
+      "creator": "Ehteshaam Khatri",
+      "source": "https://commons.wikimedia.org/wiki/File:Pondicherry_street.jpg",
+      "declaredLicense": "CC-BY-SA-4.0",
+      "capturedAt": "2015-02-16",
+      "status": "General street reference, not an aligned image sequence",
+      "admitted": false
+    }
+  ]
+}
