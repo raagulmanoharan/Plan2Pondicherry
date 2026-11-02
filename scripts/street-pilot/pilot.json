@@ -1,0 +1,10 @@
+{
+  "name": "Rue Dumas candidate pilot near Notre Dame des Anges",
+  "coordinate_status": "Approximate sampling line, not a verified road centerline. Check against a map before downloading.",
+  "start": [11.9288, 79.8340],
+  "end": [11.9298, 79.8340],
+  "samples": 12,
+  "max_panoramas": 12,
+  "corridor_metres": 40,
+  "upstream_commit": "81c5d6de73b775e2d0c69486ce41404fa323f4f4"
+}
